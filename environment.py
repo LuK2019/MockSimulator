@@ -7,70 +7,74 @@ class FlowField:
         self.height = height
         self.width = width
         if action_space is None:
-            # Default action space: interval for x and y (e.g., -1 to 1 for both x and y)
             self.action_space = ((-1, 1), (-1, 1))
         else:
             self.action_space = action_space
 
-    def get_vector_field(self):
-        raise NotImplementedError("This method should be implemented by subclasses.")
-
     def get_flow_at_position(self, x, y):
-        if self.field is None:
-            raise ValueError("get_flow_at_poistion: Flow field is not initialized.")
-        if 0 <= x < self.height and 0 <= y < self.width:
-            return self.field[x,y,...]
-        else:
-            raise ValueError("get_flow_at_poistion: Position ({}, {}) is outside the flow field.".format(x, y))
+        raise NotImplementedError("This method should be implemented by subclasses.")
+    
+    def get_flow_grid(self, resolution=1):
+        ''' Returns a grid of shape (height, width, 2, 2) where the penultimate dimension is the x,y coordinate and the last dimension represents the flow vector at each position.
+        The resolution parameter determines how many points are sampled in each direction.'''
+
+        # Create a grid of the specified resolution
+        grid_x = np.linspace(0, self.height, resolution)
+        grid_y = np.linspace(0, self.width, resolution)
+        flow_grid = np.zeros((resolution, resolution, 2, 2))
+
+        # Populate the grid with coordinates and flow vectors
+        for i, x in enumerate(grid_x):
+            for j, y in enumerate(grid_y):
+                flow_grid[i, j, :, 0] = [x, y]  # Store the coordinates
+                flow_grid[i, j, :, 1] = self.get_flow_at_position(x, y)  # Store the flow vector
+
+        return flow_grid
 
 class UniformFlowField(FlowField):
     def __init__(self, height, width, flow_vector, action_space=None):
         super().__init__(height, width, action_space)
         self.flow_vector = flow_vector
-        self.field = self.get_vector_field()
     
-    def get_vector_field(self):
-        field = np.empty((self.height, self.width, 2))
-        field[:] = self.flow_vector
-        return field
+    def get_flow_at_position(self, x, y):
+        if 0 <= x < self.height and 0 <= y < self.width:
+            return self.flow_vector
+        else:
+            raise ValueError(f"Position ({x}, {y}) is outside the flow field.")
 
 class SegmentedFlowField(UniformFlowField):
     def __init__(self, height, width, flow_vector):
         super().__init__(height, width, flow_vector)
-        self.field = self.get_vector_field()
 
-    def get_vector_field(self):
-        field = np.zeros((self.height, self.width, 2))  # Initialize with zero flow
-        third_height = self.height // 3
-        for x in range(third_height, 2 * third_height):
-            for y in range(self.width):
-                field[x, y,...] = self.flow_vector  # Set flow vector in the middle third
-        return field
-        
+    def get_flow_at_position(self, x, y):
+        if 0 <= x < self.height and 0 <= y < self.width:
+            third_height = self.height // 3
+            if third_height <= x < 2 * third_height:
+                return self.flow_vector
+            else:
+                return (0, 0)
+        else:
+            raise ValueError(f"Position ({x}, {y}) is outside the flow field.")
+
 class SingleGyreFlowField(FlowField):
     def __init__(self, height, width, center, radius, strength, action_space=None):
         super().__init__(height, width, action_space)
-        self.center = center  # Center of the gyre (x, y)
-        self.radius = radius  # Radius of the gyre
-        self.strength = strength  # Strength of the gyre
-        self.field = self.get_vector_field()
+        self.center = center
+        self.radius = radius
+        self.strength = strength
 
-    def get_vector_field(self):
-        field = np.zeros((self.height, self.width, 2))  # 2 for x and y components
-        for x in range(self.height):
-            for y in range(self.width):
-                # Calculate the distance from the center
-                dx = x - self.center[0]
-                dy = y - self.center[1]
-                distance = np.sqrt(dx**2 + dy**2)
+    def get_flow_at_position(self, x, y):
+        if 0 <= x < self.height and 0 <= y < self.width:
+            dx = x - self.center[0]
+            dy = y - self.center[1]
+            distance = np.sqrt(dx**2 + dy**2)
+            if distance < self.radius:
+                return (-self.strength * dy, self.strength * dx)
+            else:
+                return (0, 0)
+        else:
+            raise ValueError(f"Position ({x}, {y}) is outside the flow field.")
 
-                # Check if the point is within the gyre's influence
-                if distance < self.radius:
-                    field[x, y, 0] = -self.strength * dy # x component
-                    field[x, y, 1] = self.strength * dx   # y component
-
-        assert field.shape == (self.height, self.width, 2), "Flow field has incorrect shape."
-        return field
 
 class Agent:
     def __init__(self, start_x, start_y, action_space=None):
@@ -115,13 +119,13 @@ class Environment:
         self.target = target
         self.threshold = threshold
         self.replay_buffer = ReplayBuffer()
-        self.initial_state = ((agent.x, agent.y), self.flow_field.field)  # Store the initial state for reset
+        self.initial_state = ((agent.x, agent.y), self.flow_field.get_flow_grid())  # Store the initial state for reset
 
     def step(self):
         action = self.agent.select_action()  # Use self.agent
-        current_state = (self.agent.get_current_position(), self.flow_field.field)
+        current_state = (self.agent.get_current_position(), self.flow_field.get_flow_grid())
         self.agent.move(action, self.flow_field)
-        new_state = (self.agent.get_current_position(), self.flow_field.field)
+        new_state = (self.agent.get_current_position(), self.flow_field.get_flow_grid())
         reward = self.compute_reward(new_state[0])
         done = self.is_done()
         # Check if the agent is outside the grid
@@ -135,7 +139,7 @@ class Environment:
         self.agent.x, self.agent.y = self.initial_state[0]  # Reset agent to initial state
         self.agent.history = [self.initial_state[0]]
         reward = self.compute_reward(self.initial_state[0])
-        return (self.agent.get_current_position(), self.flow_field.field)
+        return (self.agent.get_current_position(), self.flow_field.get_flow_grid())
 
     def compute_reward(self, position):
         # Calculate the Euclidean distance from the current position to the target
@@ -199,8 +203,9 @@ if __name__ == "__main__":
 
     # Example usage with custom action space
     action_space = ((0, 1), (0, 1))  # Agents can move between -2 and 2 steps in both x and y
-    # flow_field = SingleGyreFlowField(width=10, height=10, center=(5, 5), radius=3, strength=2, action_space=action_space)
-    flow_field = UniformFlowField(width=10, height=10, flow_vector=(0.5, 0.5), action_space=action_space)
+    # flow_field = SingleGyreFlowField(width=100, height=100, center=(50, 50), radius=10, strength=1, action_space=action_space)
+    # flow_field = UniformFlowField(width=10, height=10, flow_vector=(1, 0), action_space=action_space)
+    flow_field = SegmentedFlowField(width=10, height=10, flow_vector=(1, 0))
     print("Custom Action Space:", flow_field.action_space)
     uniform_agent = UniformAgent(start_x=2, start_y=2, uniform_action= (0.5, 0.5))  # UniformAgent always moves (0.5, 0.5)
     random_agent = RandomAgent(0, 0, [(1, 0), (0, 1), (-1, 0), (0, -1)])  # RandomAgent chooses randomly
