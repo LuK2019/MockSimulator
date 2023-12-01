@@ -15,21 +15,20 @@ class FlowField:
         raise NotImplementedError("This method should be implemented by subclasses.")
     
     def get_flow_grid(self, resolution=1):
-        ''' Returns a grid of shape (height, width, 2, 2) where the penultimate dimension is the x,y coordinate and the last dimension represents the flow vector at each position.
+        ''' Returns a grid of shape (width, height, 2, 2) where the penultimate dimension is the x,y coordinate and the last dimension represents the flow vector at each position.
         The resolution parameter determines how many points are sampled in each direction.'''
 
-        # Create a grid of the specified resolution
-        grid_x = np.linspace(0, self.height, resolution)
-        grid_y = np.linspace(0, self.width, resolution)
+        grid_x = np.linspace(0, self.width, resolution)
+        grid_y = np.linspace(0, self.height, resolution)
         flow_grid = np.zeros((resolution, resolution, 2, 2))
 
-        # Populate the grid with coordinates and flow vectors
         for i, x in enumerate(grid_x):
             for j, y in enumerate(grid_y):
-                flow_grid[i, j, :, 0] = [x, y]  # Store the coordinates
-                flow_grid[i, j, :, 1] = self.get_flow_at_position(x, y)  # Store the flow vector
+                flow_grid[i, j, :, 0] = [x, y]
+                flow_grid[i, j, :, 1] = self.get_flow_at_position(y, x)  # Swap x and y here
 
         return flow_grid
+
 
 class UniformFlowField(FlowField):
     def __init__(self, height, width, flow_vector, action_space=None):
@@ -63,17 +62,18 @@ class SingleGyreFlowField(FlowField):
         self.radius = radius
         self.strength = strength
 
-    def get_flow_at_position(self, x, y):
-        if 0 <= x < self.height and 0 <= y < self.width:
-            dx = x - self.center[0]
-            dy = y - self.center[1]
+    def get_flow_at_position(self, y, x):  # Swap x and y in the parameter list
+        if 0 <= y < self.height and 0 <= x < self.width:
+            dx = x - self.center[1]  # Swap center coordinates
+            dy = y - self.center[0]
             distance = np.sqrt(dx**2 + dy**2)
             if distance < self.radius:
                 return (-self.strength * dy, self.strength * dx)
             else:
                 return (0, 0)
         else:
-            raise ValueError(f"Position ({x}, {y}) is outside the flow field.")
+            raise ValueError(f"Position ({y}, {x}) is outside the flow field.")  # Swap x and y in the error message
+
 
 
 class Agent:
@@ -153,13 +153,12 @@ class Environment:
         return distance <= self.threshold
 
     def render(self):
-        # Create a grid of arrows to represent the flow field
-        X, Y = np.mgrid[0:self.flow_field.height, 0:self.flow_field.width]
+        X, Y = np.mgrid[0:self.flow_field.width, 0:self.flow_field.height]
         U = np.zeros_like(X)
         V = np.zeros_like(Y)
-        for i in range(self.flow_field.width):
-            for j in range(self.flow_field.height):
-                U[i, j], V[i, j] = self.flow_field.get_flow_at_position(i, j)
+        for i in range(self.flow_field.height):  # Swap the loops
+            for j in range(self.flow_field.width):
+                U[i, j], V[i, j] = self.flow_field.get_flow_at_position(j, i)  # Swap i and j here
 
         plt.quiver(X, Y, U, V, pivot='mid')
 
@@ -203,9 +202,9 @@ if __name__ == "__main__":
 
     # Example usage with custom action space
     action_space = ((0, 1), (0, 1))  # Agents can move between -2 and 2 steps in both x and y
-    # flow_field = SingleGyreFlowField(width=100, height=100, center=(50, 50), radius=10, strength=1, action_space=action_space)
+    flow_field = SingleGyreFlowField(width=100, height=100, center=(50, 50), radius=10, strength=1, action_space=action_space)
     # flow_field = UniformFlowField(width=10, height=10, flow_vector=(1, 0), action_space=action_space)
-    flow_field = SegmentedFlowField(width=10, height=10, flow_vector=(1, 0))
+    # flow_field = SegmentedFlowField(width=10, height=10, flow_vector=(1, 0))
     print("Custom Action Space:", flow_field.action_space)
     uniform_agent = UniformAgent(start_x=2, start_y=2, uniform_action= (0.5, 0.5))  # UniformAgent always moves (0.5, 0.5)
     random_agent = RandomAgent(0, 0, [(1, 0), (0, 1), (-1, 0), (0, -1)])  # RandomAgent chooses randomly
