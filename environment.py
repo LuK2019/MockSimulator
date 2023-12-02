@@ -14,7 +14,7 @@ class FlowField:
     def get_flow_at_position(self, x, y):
         raise NotImplementedError("This method should be implemented by subclasses.")
     
-    def get_flow_grid(self, resolution=1):
+    def get_flow_grid(self, resolution=10):
         ''' Returns a grid of shape (width, height, 2, 2) where the penultimate dimension is the x,y coordinate and the last dimension represents the flow vector at each position.
         The resolution parameter determines how many points are sampled in each direction.'''
 
@@ -25,7 +25,7 @@ class FlowField:
         for i, x in enumerate(grid_x):
             for j, y in enumerate(grid_y):
                 flow_grid[i, j, :, 0] = [x, y]
-                flow_grid[i, j, :, 1] = self.get_flow_at_position(y, x)  # Swap x and y here
+                flow_grid[i, j, :, 1] = self.get_flow_at_position(x, y)  # Swap x and y here
 
         return flow_grid
 
@@ -36,7 +36,7 @@ class UniformFlowField(FlowField):
         self.flow_vector = flow_vector
     
     def get_flow_at_position(self, x, y):
-        if 0 <= x < self.height and 0 <= y < self.width:
+        if 0 <= x <= self.height and 0 <= y <= self.width:
             return self.flow_vector
         else:
             raise ValueError(f"Position ({x}, {y}) is outside the flow field.")
@@ -46,7 +46,7 @@ class SegmentedFlowField(UniformFlowField):
         super().__init__(height, width, flow_vector)
 
     def get_flow_at_position(self, x, y):
-        if 0 <= x < self.height and 0 <= y < self.width:
+        if 0 <= x <= self.height and 0 <= y <= self.width:
             third_height = self.height // 3
             if third_height <= x < 2 * third_height:
                 return self.flow_vector
@@ -63,7 +63,7 @@ class SingleGyreFlowField(FlowField):
         self.strength = strength
 
     def get_flow_at_position(self, y, x):  # Swap x and y in the parameter list
-        if 0 <= y < self.height and 0 <= x < self.width:
+        if 0 <= y <= self.height and 0 <= x <= self.width:
             dx = x - self.center[1]  # Swap center coordinates
             dy = y - self.center[0]
             distance = np.sqrt(dx**2 + dy**2)
@@ -72,7 +72,7 @@ class SingleGyreFlowField(FlowField):
             else:
                 return (0, 0)
         else:
-            raise ValueError(f"Position ({y}, {x}) is outside the flow field.")  # Swap x and y in the error message
+            raise ValueError(f"Position ({x}, {y}) is outside the flow field.")  # Swap x and y in the error message
 
 
 
@@ -119,20 +119,25 @@ class Environment:
         self.target = target
         self.threshold = threshold
         self.replay_buffer = ReplayBuffer()
-        self.initial_state = ((agent.x, agent.y), self.flow_field.get_flow_grid())  # Store the initial state for reset
+        self.initial_state = ((self.agent.x, self.agent.y), self.flow_field.get_flow_grid())
+        self.state = self.initial_state
+    
+    def get_initial_state(self):
+        return ((self.agent.x, self.agent.y), self.flow_field.get_flow_grid())
 
     def step(self):
         action = self.agent.select_action()  # Use self.agent
-        current_state = (self.agent.get_current_position(), self.flow_field.get_flow_grid())
+        current_state = self.state
         self.agent.move(action, self.flow_field)
         new_state = (self.agent.get_current_position(), self.flow_field.get_flow_grid())
+        self.state = new_state
         reward = self.compute_reward(new_state[0])
         done = self.is_done()
         # Check if the agent is outside the grid
         if not (0 <= self.agent.x < self.flow_field.width and 0 <= self.agent.y < self.flow_field.height):
             done = True
             print("Episode terminated: Agent moved outside the grid.")
-        self.replay_buffer.add(current_state, action, new_state, reward)
+        self.replay_buffer.add(current_state, action, new_state, reward, done)
         return new_state, action, reward, done
 
     def reset(self):
@@ -187,7 +192,7 @@ class ReplayBuffer:
     def __init__(self):
         self.buffer = []
 
-    def add(self, state, action, next_state, reward):
+    def add(self, state, action, next_state, reward, done):
         experience = (state, action, next_state, reward)
         self.buffer.append(experience)
 
@@ -202,21 +207,26 @@ if __name__ == "__main__":
 
     # Example usage with custom action space
     action_space = ((0, 1), (0, 1))  # Agents can move between -2 and 2 steps in both x and y
-    flow_field = SingleGyreFlowField(width=100, height=100, center=(50, 50), radius=10, strength=1, action_space=action_space)
-    # flow_field = UniformFlowField(width=10, height=10, flow_vector=(1, 0), action_space=action_space)
-    # flow_field = SegmentedFlowField(width=10, height=10, flow_vector=(1, 0))
+    flow_field = SingleGyreFlowField(width=10, height=10, center=(5, 5), radius=3, strength=1, action_space=action_space)
+    #flow_field = UniformFlowField(width=10, height=10, flow_vector=(1, 0), action_space=action_space)
+    #flow_field = SegmentedFlowField(width=10, height=10, flow_vector=(1, 0))
     print("Custom Action Space:", flow_field.action_space)
-    uniform_agent = UniformAgent(start_x=2, start_y=2, uniform_action= (0.5, 0.5))  # UniformAgent always moves (0.5, 0.5)
+    uniform_agent = UniformAgent(start_x=2, start_y=2, uniform_action= (1.0, 0.5))  # UniformAgent always moves (0.5, 0.5)
     random_agent = RandomAgent(0, 0, [(1, 0), (0, 1), (-1, 0), (0, -1)])  # RandomAgent chooses randomly
-
+    NUM_ROLLOUTS = 10
     env = Environment(flow_field, uniform_agent, target=(8, 8), threshold=1.0)
     render = True
     state = env.reset()
     done = False
     print("Initial State:", state)  
-    while not done:
-        new_state, action, reward, done = env.step()
-        print("State:", new_state, "Action:", action, "Reward:", reward)
-        if render:
-            env.render()
+    for i in range(NUM_ROLLOUTS):
+        print("Rollout:", i)
+        done = False
+        while not done:
+            new_state, action, reward, done = env.step()
+            print("State:", new_state, "Action:", action, "Reward:", reward)
+            if render:
+                env.render()
+        env.reset()
+
 
