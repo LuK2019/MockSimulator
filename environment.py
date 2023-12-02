@@ -14,20 +14,22 @@ class FlowField:
     def get_flow_at_position(self, x, y):
         raise NotImplementedError("This method should be implemented by subclasses.")
     
-    def get_flow_grid(self, resolution=10):
+    def get_flow_grid(self, resolution=20):
         ''' Returns a grid of shape (width, height, 2, 2) where the penultimate dimension is the x,y coordinate and the last dimension represents the flow vector at each position.
         The resolution parameter determines how many points are sampled in each direction.'''
 
         grid_x = np.linspace(0, self.width, resolution)
         grid_y = np.linspace(0, self.height, resolution)
         flow_grid = np.zeros((resolution, resolution, 2, 2))
+        flow_grid_coordinates = np.zeros((resolution, resolution, 2))
 
         for i, x in enumerate(grid_x):
             for j, y in enumerate(grid_y):
                 flow_grid[i, j, :, 0] = [x, y]
-                flow_grid[i, j, :, 1] = self.get_flow_at_position(x, y)  # Swap x and y here
+                flow_grid[i, j, :, 1] = self.get_flow_at_position(x, y)
+                flow_grid_coordinates[i, j, :] = [x, y]
 
-        return flow_grid
+        return flow_grid, flow_grid_coordinates
 
 
 class UniformFlowField(FlowField):
@@ -113,23 +115,23 @@ class UniformAgent(Agent):
         return self.uniform_action
 
 class Environment:
-    def __init__(self, flow_field, agent, target, threshold):
+    def __init__(self, flow_field, agent, target, threshold, buffer):
         self.flow_field = flow_field
-        self.agent = agent  # Use consistent naming for the agent
+        self.agent = agent 
         self.target = target
         self.threshold = threshold
-        self.replay_buffer = ReplayBuffer()
-        self.initial_state = ((self.agent.x, self.agent.y), self.flow_field.get_flow_grid())
+        self.replay_buffer = buffer
+        self.initial_state = ((self.agent.x, self.agent.y), *self.flow_field.get_flow_grid())
         self.state = self.initial_state
     
     def get_initial_state(self):
-        return ((self.agent.x, self.agent.y), self.flow_field.get_flow_grid())
+        return ((self.agent.x, self.agent.y), *self.flow_field.get_flow_grid())
 
     def step(self):
         action = self.agent.select_action()  # Use self.agent
         current_state = self.state
         self.agent.move(action, self.flow_field)
-        new_state = (self.agent.get_current_position(), self.flow_field.get_flow_grid())
+        new_state = (self.agent.get_current_position(), *self.flow_field.get_flow_grid())
         self.state = new_state
         reward = self.compute_reward(new_state[0])
         done = self.is_done()
@@ -144,7 +146,7 @@ class Environment:
         self.agent.x, self.agent.y = self.initial_state[0]  # Reset agent to initial state
         self.agent.history = [self.initial_state[0]]
         reward = self.compute_reward(self.initial_state[0])
-        return (self.agent.get_current_position(), self.flow_field.get_flow_grid())
+        return (self.agent.get_current_position(), *self.flow_field.get_flow_grid())
 
     def compute_reward(self, position):
         # Calculate the Euclidean distance from the current position to the target
@@ -193,7 +195,7 @@ class ReplayBuffer:
         self.buffer = []
 
     def add(self, state, action, next_state, reward, done):
-        experience = (state, action, next_state, reward)
+        experience = {"state": state, "action":action, "next_state":next_state, "reward":reward, "done": done}
         self.buffer.append(experience)
 
     def get_trajectory(self):
@@ -203,30 +205,78 @@ class ReplayBuffer:
         self.buffer = []
 
 
-if __name__ == "__main__":
+import random
 
-    # Example usage with custom action space
-    action_space = ((0, 1), (0, 1))  # Agents can move between -2 and 2 steps in both x and y
-    flow_field = SingleGyreFlowField(width=10, height=10, center=(5, 5), radius=3, strength=1, action_space=action_space)
-    #flow_field = UniformFlowField(width=10, height=10, flow_vector=(1, 0), action_space=action_space)
-    #flow_field = SegmentedFlowField(width=10, height=10, flow_vector=(1, 0))
-    print("Custom Action Space:", flow_field.action_space)
-    uniform_agent = UniformAgent(start_x=2, start_y=2, uniform_action= (1.0, 0.5))  # UniformAgent always moves (0.5, 0.5)
-    random_agent = RandomAgent(0, 0, [(1, 0), (0, 1), (-1, 0), (0, -1)])  # RandomAgent chooses randomly
-    NUM_ROLLOUTS = 10
-    env = Environment(flow_field, uniform_agent, target=(8, 8), threshold=1.0)
-    render = True
-    state = env.reset()
-    done = False
-    print("Initial State:", state)  
-    for i in range(NUM_ROLLOUTS):
+def create_random_coordinate(x_bounds, y_bounds):
+    x = random.uniform(*x_bounds)
+    y = random.uniform(*y_bounds)
+    return x, y
+
+def generate_random_trajectories(start_sample_area_interval, target_sample_area_interval, flow_field, num_rollouts, max_steps):
+    ''' Fill up the replay buffer with random trajectories. '''
+    buffer = ReplayBuffer()
+    for i in range(num_rollouts):
         print("Rollout:", i)
+        start = create_random_coordinate(*start_sample_area_interval)
+        target = create_random_coordinate(*target_sample_area_interval)
+        print("Start:", start)
+        print("Target:", target)
+        agent = RandomAgent(*start, action_space=action_space)
+        env = Environment(flow_field, agent, target, threshold=1.0, buffer=buffer)
+        state = env.reset()
         done = False
-        while not done:
+        step = 0
+        while not done and step < max_steps:
             new_state, action, reward, done = env.step()
-            print("State:", new_state, "Action:", action, "Reward:", reward)
-            if render:
-                env.render()
-        env.reset()
+            step += 1
+        print("Last coordinate:", agent.get_current_position())
+    return buffer
 
 
+import time 
+import pickle
+
+if __name__ == "__main__":
+    variant = 2
+
+    if variant == 1:
+        # Example usage with custom action space
+        action_space = ((0, 1), (0, 1))  # Agents can move between -2 and 2 steps in both x and y
+        flow_field = SingleGyreFlowField(width=10, height=10, center=(5, 5), radius=3, strength=1, action_space=action_space)
+        #flow_field = UniformFlowField(width=10, height=10, flow_vector=(1, 0), action_space=action_space)
+        #flow_field = SegmentedFlowField(width=10, height=10, flow_vector=(1, 0))
+        print("Custom Action Space:", flow_field.action_space)
+        uniform_agent = UniformAgent(start_x=2, start_y=2, uniform_action= (1.0, 0.5))  # UniformAgent always moves (0.5, 0.5)
+        random_agent = RandomAgent(0, 0, [(1, 0), (0, 1), (-1, 0), (0, -1)])  # RandomAgent chooses randomly
+        NUM_ROLLOUTS = 10
+        env = Environment(flow_field, uniform_agent, target=(8, 8), threshold=1.0)
+        render = True
+        state = env.reset()
+        done = False
+        print("Initial State:", state)  
+        for i in range(NUM_ROLLOUTS):
+            print("Rollout:", i)
+            done = False
+            while not done:
+                new_state, action, reward, done = env.step()
+                print("State:", new_state, "Action:", action, "Reward:", reward)
+                if render:
+                    env.render()
+            env.reset()
+    else:
+        # Usage of random trajectories
+        action_space = ((0, 1), (0, 1)) 
+        flow_field = SingleGyreFlowField(width=20, height=20, center=(10, 10), radius=4, strength=1, action_space=action_space)
+        buffer = generate_random_trajectories(
+            start_sample_area_interval=[(1,3),(1,3)],
+            target_sample_area_interval=[(16, 19), (16, 19)],
+            flow_field=flow_field,
+            num_rollouts=100,
+            max_steps=100)
+        print("Number of trajectories:", len(buffer.buffer))
+        # Pickl the buffer and dump it to a file 
+        current_time = time.strftime("%Y%m%d-%H%M%S")
+        filename = f"logs/buffer_{current_time}.pkl"
+        with open(filename, "wb") as f:
+            pickle.dump(buffer.buffer, f)
+            print("Buffer saved to", filename)
