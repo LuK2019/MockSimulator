@@ -21,15 +21,13 @@ class FlowField:
         grid_x = np.linspace(0, self.width, resolution)
         grid_y = np.linspace(0, self.height, resolution)
         flow_grid = np.zeros((resolution, resolution, 2, 2))
-        flow_grid_coordinates = np.zeros((resolution, resolution, 2))
 
         for i, x in enumerate(grid_x):
             for j, y in enumerate(grid_y):
                 flow_grid[i, j, :, 0] = [x, y]
                 flow_grid[i, j, :, 1] = self.get_flow_at_position(x, y)
-                flow_grid_coordinates[i, j, :] = [x, y]
 
-        return flow_grid, flow_grid_coordinates
+        return flow_grid
 
 
 class UniformFlowField(FlowField):
@@ -121,17 +119,17 @@ class Environment:
         self.target = target
         self.threshold = threshold
         self.replay_buffer = buffer
-        self.initial_state = ((self.agent.x, self.agent.y), *self.flow_field.get_flow_grid())
+        self.initial_state = ((self.agent.x, self.agent.y), self.flow_field.get_flow_grid())
         self.state = self.initial_state
     
     def get_initial_state(self):
-        return ((self.agent.x, self.agent.y), *self.flow_field.get_flow_grid())
+        return ((self.agent.x, self.agent.y), self.flow_field.get_flow_grid())
 
     def step(self):
         action = self.agent.select_action()  # Use self.agent
         current_state = self.state
         self.agent.move(action, self.flow_field)
-        new_state = (self.agent.get_current_position(), *self.flow_field.get_flow_grid())
+        new_state = (self.agent.get_current_position(), self.flow_field.get_flow_grid())
         self.state = new_state
         reward = self.compute_reward(new_state[0])
         done = self.is_done()
