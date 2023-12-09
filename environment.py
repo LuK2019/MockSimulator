@@ -75,17 +75,17 @@ class SingleGyreFlowField(FlowField):
 
 
 class Agent:
-    def __init__(self, loaded_policy=None):
+    def __init__(self, loaded_policy=None, action_type="continous"):
         self.loaded_policy = loaded_policy
+        self.action_type = action_type
 
     def select_action(self):
         raise NotImplementedError("This method should be implemented by subclasses.")
 
 class RandomAgent(Agent):
     def __init__(self, action_space, action_type="continous", momentum_length=None):
-        super().__init__()
+        super().__init__(action_type=action_type)
         self.action_space = action_space # boundaries of the action space if continous; num of actions in discrete
-        self.action_type = action_type
 
         self.momentum_length = momentum_length
         self.actions_in_a_row = 0
@@ -108,16 +108,38 @@ class RandomAgent(Agent):
         
     
 class UniformAgent(Agent):
-    def __init__(self, uniform_action):
-        super().__init__()
+    def __init__(self, uniform_action,action_type="continous"):
+        super().__init__(action_type)
         self.uniform_action = uniform_action # number in discrete; tuple in continous
 
     def select_action(self, observation):
         return self.uniform_action
+    
+
+class NaiveAgent(Agent):
+    def __init__(self, target, num_actions, action_type="discrete"):
+        super().__init__(action_type=action_type)
+        self.target = target
+        self.num_actions = num_actions
+        self.action_map = {i: (np.cos(2 * np.pi * i / num_actions), np.sin(2 * np.pi * i / num_actions)) for i in range(num_actions)}
+
+    def select_action(self, observation):
+        # Calculate the angle between the current position and the target
+        dx = self.target[0] - observation[0][0]
+        dy = self.target[1] - observation[0][1]
+        angle = np.arctan2(dy, dx)
+
+        if self.action_type == "continous":
+            return (np.cos(angle), np.sin(angle)) # TODO: Adjust Magnitude of Acttion here
+        else:
+            # Calculate the index of the action that is closest to the angle
+            action = int(np.round(angle * self.num_actions / (2 * np.pi))) % self.num_actions
+
+        return action
 
 class Environment:
     def __init__(self, flow_field, initial_xy, target, threshold, buffer,
-                 action_type="continous", num_actions=None): # initial_xy - list
+                 action_type="continous", num_actions=None, magnitude = 1): # initial_xy - list
         self.flow_field = flow_field
         self.target = target
         self.threshold = threshold
@@ -127,6 +149,7 @@ class Environment:
         self.history = [self.initial_state[0].copy()]
         self.action_type = action_type
         self.num_actions = num_actions
+        self.magnitude = magnitude
 
         if self.action_type == "discrete":
             # Define the number of actions
@@ -136,7 +159,7 @@ class Environment:
             angles = np.linspace(0, 2 * np.pi, num_actions, endpoint=False)
 
             # Set the length of each vector
-            length = 1
+            length = magnitude
 
             # Calculate the x, y components of each vector
             x = length * np.cos(angles)
@@ -254,7 +277,8 @@ def generate_random_trajectories(start_sample_area_interval, target_sample_area_
         target = create_random_coordinate(*target_sample_area_interval)
         print("Start:", start)
         print("Target:", target)
-        agent = RandomAgent(momentum_length=3, action_space=NUM_ACTIONS, action_type="discrete")#action_space=((0, 1), (0, 1)))
+        # agent = RandomAgent(momentum_length=3, action_space=NUM_ACTIONS, action_type="discrete")#action_space=((0, 1), (0, 1)))
+        agent = NaiveAgent(target, NUM_ACTIONS)
         env = Environment(flow_field, list(start), target, threshold=1.0,
                            buffer=buffer, action_type="discrete", num_actions=NUM_ACTIONS)
         state = env.reset()
