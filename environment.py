@@ -88,7 +88,7 @@ class RandomAgent(Agent):
     def __init__(self, action_space):
         super().__init__(action_space)
 
-    def select_action(self):
+    def select_action(self, observation):
         x_action = np.random.uniform(self.action_space[0][0], self.action_space[0][1])
         y_action = np.random.uniform(self.action_space[1][0], self.action_space[1][1])
         return (x_action, y_action)
@@ -98,7 +98,7 @@ class UniformAgent(Agent):
         super().__init__()
         self.uniform_action = uniform_action
 
-    def select_action(self):
+    def select_action(self, observation):
         return self.uniform_action
 
 class Environment:
@@ -107,8 +107,8 @@ class Environment:
         self.target = target
         self.threshold = threshold
         self.replay_buffer = buffer
-        self.initial_state = (initial_xy, self.flow_field.get_flow_grid())
-        self.current_state = self.initial_state 
+        self.initial_state = (initial_xy.copy(), self.flow_field.get_flow_grid())
+        self.current_state = (initial_xy.copy(), self.flow_field.get_flow_grid())
         self.history = [self.initial_state[0]]
     
     def get_initial_state(self):
@@ -121,10 +121,11 @@ class Environment:
         self.current_state[0][1] += action[1] + flow[1] # update y
         self.history.append(self.current_state[0])
 
-        reward = self.compute_reward(self.current_state[0])
+        new_state = self.current_state
+        reward = self.compute_reward(new_state[0])
         done = self.is_done()
 
-        self.replay_buffer.add(state, action, self.current_state, reward, done)
+        self.replay_buffer.add(state, action, new_state, reward, done)
         return new_state, action, reward, done
 
     def reset(self):
@@ -162,6 +163,7 @@ class Environment:
         plt.quiver(X, Y, U, V, pivot='mid')
 
         # Plot the agent's trajectory
+        #plot(self.history)
         x_vals, y_vals = zip(*self.history)
         plt.plot(x_vals, y_vals, 'ro-')  # 'ro-' means red color, circle markers, and solid line
 
@@ -219,9 +221,11 @@ def generate_random_trajectories(start_sample_area_interval, target_sample_area_
         done = False
         step = 0
         while not done and step < max_steps:
-            new_state, action, reward, done = env.step()
+            action = agent.select_action(state)
+            new_state, action, reward, done = env.step(action)
             step += 1
-        print("Last coordinate:", env.self.current_position[0])
+        print("Last coordinate:", env.current_state[0])
+        env.render()
     return buffer
 
 
