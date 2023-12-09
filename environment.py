@@ -3,6 +3,9 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
 NUM_ACTIONS = 8
+MAGNITUDE = 1 # Magnitude of the action vector
+RENDER = False
+
 
 class FlowField:
     def __init__(self, height, width):
@@ -139,7 +142,7 @@ class NaiveAgent(Agent):
 
 class Environment:
     def __init__(self, flow_field, initial_xy, target, threshold, buffer,
-                 action_type="continous", num_actions=None, magnitude = 1): # initial_xy - list
+                 action_type="continous", num_actions=None, magnitude = MAGNITUDE): # initial_xy - list
         self.flow_field = flow_field
         self.target = target
         self.threshold = threshold
@@ -291,7 +294,8 @@ def generate_random_trajectories(start_sample_area_interval, target_sample_area_
             #print(new_state[0]) - works
             step += 1
         print("Last coordinate:", env.current_state[0])
-        env.render()
+        if RENDER:
+            env.render()
     return buffer
 
 

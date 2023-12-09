@@ -4,10 +4,10 @@ import matplotlib.pyplot as plt
 import os 
 import h5py
 
-MODE = "LUKAS_DIFFUSOR_TEST_1_FORMAT"
-#MODE = "BEAR_DIFFUSOR_FORMAT"
+#MODE = "LUKAS_DIFFUSOR_TEST_1_FORMAT"
+MODE = "BEAR_DIFFUSOR_FORMAT"
 # Load the data
-log_name = 'buffer_20231207-190028'
+log_name = 'buffer_20231209-113934'
 
 def reformat_obs(obs):
     pos = np.array(obs[0], dtype=np.float32)
