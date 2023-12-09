@@ -77,27 +77,16 @@ class SingleGyreFlowField(FlowField):
 
 
 class Agent:
-    def __init__(self, start_x, start_y, action_space=None):
-        self.x = start_x
-        self.y = start_y
+    def __init__(self, action_space=None, loaded_policy=None):
         self.action_space = action_space
-        self.history = [(start_x, start_y)]
-
-    def move(self, action, flow_field):
-        flow = flow_field.get_flow_at_position(self.x, self.y)
-        self.x += action[0] + flow[0]
-        self.y += action[1] + flow[1]
-        self.history.append((self.x, self.y))
-
-    def get_current_position(self):
-        return self.x, self.y
+        self.loaded_policy = loaded_policy
 
     def select_action(self):
         raise NotImplementedError("This method should be implemented by subclasses.")
 
 class RandomAgent(Agent):
-    def __init__(self, start_x, start_y, action_space):
-        super().__init__(start_x, start_y, action_space)
+    def __init__(self, action_space):
+        super().__init__(action_space)
 
     def select_action(self):
         x_action = np.random.uniform(self.action_space[0][0], self.action_space[0][1])
@@ -105,46 +94,44 @@ class RandomAgent(Agent):
         return (x_action, y_action)
     
 class UniformAgent(Agent):
-    def __init__(self, start_x, start_y, uniform_action):
-        super().__init__(start_x, start_y)
+    def __init__(self, uniform_action):
+        super().__init__()
         self.uniform_action = uniform_action
 
     def select_action(self):
         return self.uniform_action
 
 class Environment:
-    def __init__(self, flow_field, agent, target, threshold, buffer):
+    def __init__(self, flow_field, initial_xy, target, threshold, buffer): # initial_xy - list
         self.flow_field = flow_field
-        self.agent = agent 
         self.target = target
         self.threshold = threshold
         self.replay_buffer = buffer
-        self.initial_state = ((self.agent.x, self.agent.y), self.flow_field.get_flow_grid())
-        self.state = self.initial_state
+        self.initial_state = (initial_xy, self.flow_field.get_flow_grid())
+        self.current_state = self.initial_state 
+        self.history = [self.initial_state[0]]
     
     def get_initial_state(self):
-        return ((self.agent.x, self.agent.y), self.flow_field.get_flow_grid())
+        return self.initial_state
 
-    def step(self):
-        action = self.agent.select_action()  # Use self.agent
-        current_state = self.state
-        self.agent.move(action, self.flow_field)
-        new_state = (self.agent.get_current_position(), self.flow_field.get_flow_grid())
-        self.state = new_state
-        reward = self.compute_reward(new_state[0])
+    def step(self, action):
+        state = self.current_state
+        flow = self.flow_field.get_flow_at_position(*self.current_state[0]) # based on current position
+        self.current_state[0][0] += action[0] + flow[0] # update x
+        self.current_state[0][1] += action[1] + flow[1] # update y
+        self.history.append(self.current_state[0])
+
+        reward = self.compute_reward(self.current_state[0])
         done = self.is_done()
-        # Check if the agent is outside the grid
-        if not (0 <= self.agent.x < self.flow_field.width and 0 <= self.agent.y < self.flow_field.height):
-            done = True
-            print("Episode terminated: Agent moved outside the grid.")
-        self.replay_buffer.add(current_state, action, new_state, reward, done)
+
+        self.replay_buffer.add(state, action, self.current_state, reward, done)
         return new_state, action, reward, done
 
     def reset(self):
-        self.agent.x, self.agent.y = self.initial_state[0]  # Reset agent to initial state
-        self.agent.history = [self.initial_state[0]]
-        reward = self.compute_reward(self.initial_state[0])
-        return (self.agent.get_current_position(), *self.flow_field.get_flow_grid())
+        self.current_state[0][0], self.current_state[0][1] = self.initial_state[0]  # Reset agent to initial state
+        self.history = [self.initial_state[0]]
+        # reward = self.compute_reward(self.initial_state[0])
+        return (self.current_state[0], *self.flow_field.get_flow_grid())
 
     def compute_reward(self, position):
         # Calculate the Euclidean distance from the current position to the target
@@ -153,9 +140,16 @@ class Environment:
         return -distance
 
     def is_done(self):
+        # Check if the agent is outside the grid
+        if not (0 <= self.current_state[0][0] < self.flow_field.width and 0 <= self.current_state[0][1] < self.flow_field.height):
+            outside_of_grid = True
+            print("Episode terminated: Agent moved outside the grid.")
+            return outside_of_grid
+        
         # Calculate the distance between the agent and the target
-        distance = ((self.agent.x - self.target[0]) ** 2 + (self.agent.y - self.target[1]) ** 2) ** 0.5
-        return distance <= self.threshold
+        distance = ((self.current_state[0][0] - self.target[0]) ** 2 + (self.current_state[0][1] - self.target[1]) ** 2) ** 0.5
+        reached_goal = (distance <= self.threshold)
+        return reached_goal
 
     def render(self):
         X, Y = np.mgrid[0:self.flow_field.width, 0:self.flow_field.height]
@@ -168,11 +162,11 @@ class Environment:
         plt.quiver(X, Y, U, V, pivot='mid')
 
         # Plot the agent's trajectory
-        x_vals, y_vals = zip(*self.agent.history)
+        x_vals, y_vals = zip(*self.history)
         plt.plot(x_vals, y_vals, 'ro-')  # 'ro-' means red color, circle markers, and solid line
 
         # Mark the agent's current position
-        plt.plot(self.agent.x, self.agent.y, 'bo')  # 'bo' means blue color and circle markers
+        plt.plot(self.current_state[0][0], self.current_state[0][1], 'bo')  # 'bo' means blue color and circle markers
 
         # Draw the target as a green box
         target_rect = patches.Rectangle(self.target, 1, 1, linewidth=1, edgecolor='g', facecolor='none')
@@ -219,15 +213,15 @@ def generate_random_trajectories(start_sample_area_interval, target_sample_area_
         target = create_random_coordinate(*target_sample_area_interval)
         print("Start:", start)
         print("Target:", target)
-        agent = RandomAgent(*start, action_space=action_space)
-        env = Environment(flow_field, agent, target, threshold=1.0, buffer=buffer)
+        agent = RandomAgent(action_space=action_space)
+        env = Environment(flow_field, list(start), target, threshold=1.0, buffer=buffer)
         state = env.reset()
         done = False
         step = 0
         while not done and step < max_steps:
             new_state, action, reward, done = env.step()
             step += 1
-        print("Last coordinate:", agent.get_current_position())
+        print("Last coordinate:", env.self.current_position[0])
     return buffer
 
 
@@ -244,10 +238,10 @@ if __name__ == "__main__":
         #flow_field = UniformFlowField(width=10, height=10, flow_vector=(1, 0), action_space=action_space)
         #flow_field = SegmentedFlowField(width=10, height=10, flow_vector=(1, 0))
         print("Custom Action Space:", flow_field.action_space)
-        uniform_agent = UniformAgent(start_x=2, start_y=2, uniform_action= (1.0, 0.5))  # UniformAgent always moves (0.5, 0.5)
-        random_agent = RandomAgent(0, 0, [(1, 0), (0, 1), (-1, 0), (0, -1)])  # RandomAgent chooses randomly
+        uniform_agent = UniformAgent(uniform_action= (1.0, 0.5))  # UniformAgent always moves (0.5, 0.5)
+        random_agent = RandomAgent([(1, 0), (0, 1), (-1, 0), (0, -1)])  # RandomAgent chooses randomly 
         NUM_ROLLOUTS = 10
-        env = Environment(flow_field, uniform_agent, target=(8, 8), threshold=1.0)
+        env = Environment(flow_field, [0, 0], target=(8, 8), threshold=1.0)
         render = True
         state = env.reset()
         done = False
