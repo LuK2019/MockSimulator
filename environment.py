@@ -221,13 +221,17 @@ def generate_random_trajectories(start_sample_area_interval, target_sample_area_
         print("Target:", target)
         coin_flip = random.randint(0, 4)
         if coin_flip == 0:
-            action_space = ((-1, 1), (-1, 1))
-        elif coin_flip == 1:
+            # Quadrant I: Both x and y are positive
             action_space = ((0, 1), (0, 1))
+        elif coin_flip == 1:
+            # Quadrant II: x is negative, y is positive
+            action_space = ((-1, 0), (0, 1))
         elif coin_flip == 2:
-            action_space = ((-1, 1), (0, 1))
+            # Quadrant III: Both x and y are negative
+            action_space = ((-1, 0), (-1, 0))
         else:
-            action_space = ((0, 1), (-1, 1))
+            # Quadrant IV: x is positive, y is negative
+            action_space = ((0, 1), (-1, 0))
         agent = RandomAgent(*start, action_space=action_space)
         env = Environment(flow_field, agent, target, threshold=1.0, buffer=buffer)
         state = env.reset()
