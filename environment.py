@@ -109,18 +109,20 @@ class Environment:
         self.replay_buffer = buffer
         self.initial_state = (initial_xy.copy(), self.flow_field.get_flow_grid())
         self.current_state = (initial_xy.copy(), self.flow_field.get_flow_grid())
-        self.history = [self.initial_state[0]]
+        self.history = [self.initial_state[0].copy()]
     
     def get_initial_state(self):
         return self.initial_state
 
     def step(self, action):
         state = self.current_state
+        #print("Current state:", state[0])
         flow = self.flow_field.get_flow_at_position(*self.current_state[0]) # based on current position
         self.current_state[0][0] += action[0] + flow[0] # update x
         self.current_state[0][1] += action[1] + flow[1] # update y
-        self.history.append(self.current_state[0])
-
+        #print("New state:", self.current_state[0])
+        self.history.append(self.current_state[0].copy())
+        #print("History:", self.history)
         new_state = self.current_state
         reward = self.compute_reward(new_state[0])
         done = self.is_done()
@@ -130,7 +132,7 @@ class Environment:
 
     def reset(self):
         self.current_state[0][0], self.current_state[0][1] = self.initial_state[0]  # Reset agent to initial state
-        self.history = [self.initial_state[0]]
+        self.history = [self.initial_state[0].copy()]
         # reward = self.compute_reward(self.initial_state[0])
         return (self.current_state[0], *self.flow_field.get_flow_grid())
 
@@ -223,6 +225,8 @@ def generate_random_trajectories(start_sample_area_interval, target_sample_area_
         while not done and step < max_steps:
             action = agent.select_action(state)
             new_state, action, reward, done = env.step(action)
+            #print(action) - works
+            #print(new_state[0]) - works
             step += 1
         print("Last coordinate:", env.current_state[0])
         env.render()
