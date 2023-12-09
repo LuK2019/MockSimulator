@@ -2,14 +2,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
+NUM_ACTIONS = 8
+
 class FlowField:
-    def __init__(self, height, width, action_space=None):
+    def __init__(self, height, width):
         self.height = height
         self.width = width
-        if action_space is None:
-            self.action_space = ((-1, 1), (-1, 1))
-        else:
-            self.action_space = action_space
 
     def get_flow_at_position(self, x, y):
         raise NotImplementedError("This method should be implemented by subclasses.")
@@ -31,8 +29,8 @@ class FlowField:
 
 
 class UniformFlowField(FlowField):
-    def __init__(self, height, width, flow_vector, action_space=None):
-        super().__init__(height, width, action_space)
+    def __init__(self, height, width, flow_vector):
+        super().__init__(height, width)
         self.flow_vector = flow_vector
     
     def get_flow_at_position(self, x, y):
@@ -56,8 +54,8 @@ class SegmentedFlowField(UniformFlowField):
             raise ValueError(f"Position ({x}, {y}) is outside the flow field.")
 
 class SingleGyreFlowField(FlowField):
-    def __init__(self, height, width, center, radius, strength, action_space=None):
-        super().__init__(height, width, action_space)
+    def __init__(self, height, width, center, radius, strength):
+        super().__init__(height, width)
         self.center = center
         self.radius = radius
         self.strength = strength
@@ -77,32 +75,49 @@ class SingleGyreFlowField(FlowField):
 
 
 class Agent:
-    def __init__(self, action_space=None, loaded_policy=None):
-        self.action_space = action_space
+    def __init__(self, loaded_policy=None):
         self.loaded_policy = loaded_policy
 
     def select_action(self):
         raise NotImplementedError("This method should be implemented by subclasses.")
 
 class RandomAgent(Agent):
-    def __init__(self, action_space):
-        super().__init__(action_space)
+    def __init__(self, action_space, action_type="continous", momentum_length=None):
+        super().__init__()
+        self.action_space = action_space # boundaries of the action space if continous; num of actions in discrete
+        self.action_type = action_type
+
+        self.momentum_length = momentum_length
+        self.actions_in_a_row = 0
+        self.last_action = None
 
     def select_action(self, observation):
-        x_action = np.random.uniform(self.action_space[0][0], self.action_space[0][1])
-        y_action = np.random.uniform(self.action_space[1][0], self.action_space[1][1])
-        return (x_action, y_action)
+        if self.action_type == "continous":
+            x_action = np.random.uniform(self.action_space[0][0], self.action_space[0][1])
+            y_action = np.random.uniform(self.action_space[1][0], self.action_space[1][1])
+            return (x_action, y_action)
+        else:
+            if self.actions_in_a_row < self.momentum_length and self.last_action is not None:
+                self.actions_in_a_row += 1
+                return self.last_action
+            else:
+                self.actions_in_a_row = 0
+                self.last_action = np.random.choice(self.action_space)
+                return self.last_action
+            
+        
     
 class UniformAgent(Agent):
     def __init__(self, uniform_action):
         super().__init__()
-        self.uniform_action = uniform_action
+        self.uniform_action = uniform_action # number in discrete; tuple in continous
 
     def select_action(self, observation):
         return self.uniform_action
 
 class Environment:
-    def __init__(self, flow_field, initial_xy, target, threshold, buffer): # initial_xy - list
+    def __init__(self, flow_field, initial_xy, target, threshold, buffer,
+                 action_type="continous", num_actions=None): # initial_xy - list
         self.flow_field = flow_field
         self.target = target
         self.threshold = threshold
@@ -110,6 +125,24 @@ class Environment:
         self.initial_state = (initial_xy.copy(), self.flow_field.get_flow_grid())
         self.current_state = (initial_xy.copy(), self.flow_field.get_flow_grid())
         self.history = [self.initial_state[0].copy()]
+        self.action_type = action_type
+        self.num_actions = num_actions
+
+        if self.action_type == "discrete":
+            # Define the number of actions
+            assert num_actions is not None, "Please specify the number of actions."
+
+            # Calculate the angle of each action
+            angles = np.linspace(0, 2 * np.pi, num_actions, endpoint=False)
+
+            # Set the length of each vector
+            length = 1
+
+            # Calculate the x, y components of each vector
+            x = length * np.cos(angles)
+            y = length * np.sin(angles)
+
+            self.action_map = {i: (x[i], y[i]) for i in range(num_actions)}
     
     def get_initial_state(self):
         return self.initial_state
@@ -118,8 +151,12 @@ class Environment:
         state = self.current_state
         #print("Current state:", state[0])
         flow = self.flow_field.get_flow_at_position(*self.current_state[0]) # based on current position
-        self.current_state[0][0] += action[0] + flow[0] # update x
-        self.current_state[0][1] += action[1] + flow[1] # update y
+        if self.action_type == "continous":
+            self.current_state[0][0] += action[0] + flow[0] # update x
+            self.current_state[0][1] += action[1] + flow[1] # update y
+        elif self.action_type == "discrete":
+            self.current_state[0][0] += self.action_map[action][0] + flow[0]
+            self.current_state[0][1] += self.action_map[action][1] + flow[1]
         #print("New state:", self.current_state[0])
         self.history.append(self.current_state[0].copy())
         #print("History:", self.history)
@@ -217,8 +254,9 @@ def generate_random_trajectories(start_sample_area_interval, target_sample_area_
         target = create_random_coordinate(*target_sample_area_interval)
         print("Start:", start)
         print("Target:", target)
-        agent = RandomAgent(action_space=action_space)
-        env = Environment(flow_field, list(start), target, threshold=1.0, buffer=buffer)
+        agent = RandomAgent(momentum_length=3, action_space=NUM_ACTIONS, action_type="discrete")#action_space=((0, 1), (0, 1)))
+        env = Environment(flow_field, list(start), target, threshold=1.0,
+                           buffer=buffer, action_type="discrete", num_actions=NUM_ACTIONS)
         state = env.reset()
         done = False
         step = 0
@@ -242,7 +280,7 @@ if __name__ == "__main__":
     if variant == 1:
         # Example usage with custom action space
         action_space = ((0, 1), (0, 1))  # Agents can move between -2 and 2 steps in both x and y
-        flow_field = SingleGyreFlowField(width=10, height=10, center=(5, 5), radius=3, strength=1, action_space=action_space)
+        flow_field = SingleGyreFlowField(width=10, height=10, center=(5, 5), radius=3, strength=1)
         #flow_field = UniformFlowField(width=10, height=10, flow_vector=(1, 0), action_space=action_space)
         #flow_field = SegmentedFlowField(width=10, height=10, flow_vector=(1, 0))
         print("Custom Action Space:", flow_field.action_space)
@@ -266,7 +304,7 @@ if __name__ == "__main__":
     else:
         # Usage of random trajectories
         action_space = ((0, 1), (0, 1)) 
-        flow_field = SingleGyreFlowField(width=20, height=20, center=(10, 10), radius=4, strength=1, action_space=action_space)
+        flow_field = SingleGyreFlowField(width=20, height=20, center=(10, 10), radius=4, strength=1)
         buffer = generate_random_trajectories(
             start_sample_area_interval=[(1,3),(1,3)],
             target_sample_area_interval=[(16, 19), (16, 19)],
