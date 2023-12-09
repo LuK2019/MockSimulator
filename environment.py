@@ -219,6 +219,15 @@ def generate_random_trajectories(start_sample_area_interval, target_sample_area_
         target = create_random_coordinate(*target_sample_area_interval)
         print("Start:", start)
         print("Target:", target)
+        coin_flip = random.randint(0, 4)
+        if coin_flip == 0:
+            action_space = ((-1, 1), (-1, 1))
+        elif coin_flip == 1:
+            action_space = ((0, 1), (0, 1))
+        elif coin_flip == 2:
+            action_space = ((-1, 1), (0, 1))
+        else:
+            action_space = ((0, 1), (-1, 1))
         agent = RandomAgent(*start, action_space=action_space)
         env = Environment(flow_field, agent, target, threshold=1.0, buffer=buffer)
         state = env.reset()
@@ -263,13 +272,13 @@ if __name__ == "__main__":
             env.reset()
     else:
         # Usage of random trajectories
-        action_space = ((0, 1), (0, 1)) 
+        action_space = ((-1, 1), (-1, 1)) 
         flow_field = SingleGyreFlowField(width=20, height=20, center=(10, 10), radius=4, strength=1, action_space=action_space)
         buffer = generate_random_trajectories(
-            start_sample_area_interval=[(1,3),(1,3)],
+            start_sample_area_interval=[(0.5,19.5),(0.5,19.5)],
             target_sample_area_interval=[(16, 19), (16, 19)],
             flow_field=flow_field,
-            num_rollouts=100,
+            num_rollouts=50000,
             max_steps=100)
         print("Number of trajectories:", len(buffer.buffer))
         # Pickl the buffer and dump it to a file 
