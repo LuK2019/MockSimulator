@@ -1,4 +1,5 @@
 import numpy as np
+import random
 
 class Agent:
     def __init__(self, loaded_policy=None, action_type="continous"):
@@ -68,6 +69,23 @@ class NaiveAgent(Agent):
 
         return action
     
+# make a new agent called DrunkenAgent which by chance acts either like the RandomAgent or the NaiveAgent
+
+class DrunkenAgent(Agent):
+    def __init__(self, action_space, target, num_actions, action_type="discrete", momentum_length=3, magnitude=1):
+        super().__init__(action_type=action_type)
+        # Initialize RandomAgent and NaiveAgent objects
+        self.last_agent_type = ...
+        self.random_agent = RandomAgent(action_space, action_type, momentum_length)
+        self.naive_agent = NaiveAgent(target, num_actions, action_type, magnitude)
+
+    def select_action(self, observation):
+        # Randomly choose to use the action from RandomAgent or NaiveAgent
+        if random.choice([True, False]):
+            return self.random_agent.select_action(observation)
+        else:
+            return self.naive_agent.select_action(observation)
+
 
 class CQLAgent(Agent):
     def __init__(self, loaded_policy=None, action_type="discrete"):
