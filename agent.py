@@ -67,3 +67,13 @@ class NaiveAgent(Agent):
             #print("----------------")
 
         return action
+    
+
+class CQLAgent(Agent):
+    def __init__(self, loaded_policy=None, action_type="discrete"):
+        assert loaded_policy is not None, "Please specify path to CQL"
+        self.loaded_policy = loaded_policy
+        self.action_type = action_type
+
+    def select_action(self):
+        raise NotImplementedError("This method should be implemented by subclasses.")

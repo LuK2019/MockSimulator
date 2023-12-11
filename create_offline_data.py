@@ -11,7 +11,7 @@ from simulator import Environment, SingleGyreFlowField
 
 NUM_ACTIONS = 8
 MAGNITUDE = 1 # Magnitude of the action vector
-RENDER = True
+RENDER = False
 
 
 
@@ -48,15 +48,17 @@ def generate_random_trajectories(start_sample_area_interval, target_sample_area_
         print("Start:", start)
         print("Target:", target)
         # agent = RandomAgent(momentum_length=3, action_space=NUM_ACTIONS, action_type="discrete")#action_space=((0, 1), (0, 1)))
-        agent = NaiveAgent(target, NUM_ACTIONS)
+        agent = NaiveAgent(target, NUM_ACTIONS, magnitude=MAGNITUDE)
         env = Environment(flow_field, list(start), target, threshold=1.0,
-                           buffer=buffer, action_type="discrete", num_actions=NUM_ACTIONS, magnitude=MAGNITUDE)
+                          action_type="discrete", num_actions=NUM_ACTIONS, magnitude=MAGNITUDE)
         state = env.reset()
         done = False
         step = 0
         while not done and step < max_steps:
             action = agent.select_action(state)
             new_state, action, reward, done = env.step(action)
+            buffer.add(state, action, new_state, reward, done)
+            state = new_state
             #print(action) - works
             #print(new_state[0]) - works
             step += 1

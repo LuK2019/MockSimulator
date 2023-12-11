@@ -3,7 +3,6 @@ import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
 
-
 class FlowField:
     def __init__(self, height, width):
         self.height = height
@@ -77,18 +76,19 @@ class SingleGyreFlowField(FlowField):
 
 
 class Environment:
-    def __init__(self, flow_field, initial_xy, target, threshold, buffer, magnitude,
-                 action_type="continous", num_actions=None): # initial_xy - list
+    def __init__(self, flow_field, initial_xy, target, threshold, magnitude,
+                 action_type="continous", num_actions=None,
+                 save_render_name = None): # initial_xy - list
         self.flow_field = flow_field
         self.target = target
         self.threshold = threshold
-        self.replay_buffer = buffer
         self.initial_state = initial_xy.copy()
         self.current_state = initial_xy.copy()
         self.history = [self.initial_state.copy()]
         self.action_type = action_type
         self.num_actions = num_actions
         self.magnitude = magnitude
+        self.save_render_name = save_render_name
 
         if self.action_type == "discrete":
             # Define the number of actions
@@ -126,7 +126,7 @@ class Environment:
         reward = self.compute_reward(new_state)
         done = self.is_done()
 
-        self.replay_buffer.add(state, action, new_state, reward, done)
+        #self.replay_buffer.add(state, action, new_state, reward, done)
         return new_state, action, reward, done
 
     def reset(self):
@@ -171,9 +171,15 @@ class Environment:
         # Mark the agent's current position
         plt.plot(self.current_state[0], self.current_state[1], 'bo')  # 'bo' means blue color and circle markers
 
-        # Draw the target as a green box
-        target_rect = patches.Rectangle(self.target, 1, 1, linewidth=1, edgecolor='g', facecolor='none')
-        plt.gca().add_patch(target_rect)
+        # Make a big Green X at the target
+        plt.plot(self.target[0], self.target[1], 'gx', markersize=8, markeredgewidth=2)
+
+        # Draw a circle to show the threshold
+        circle = plt.Circle(self.target, self.threshold, color='g', fill=False)
+        ax = plt.gca()
+        ax.add_artist(circle)
+        # Set the aspect of the plot to be equal
+        ax.set_aspect('equal', adjustable='box')
 
         # Set plot limits and labels
         plt.xlim(0, self.flow_field.width)
@@ -182,5 +188,12 @@ class Environment:
         plt.ylabel('Y-axis')
         plt.title('Agent Movement in Flow Field')
 
+        # Save fig
+        if self.save_render_name is not None:
+            # save image in folder trajectory_plots with name save_render_name
+            plt.savefig(f"trajectory_plots/{self.save_render_name}.png")
+            plt.close()
+        
         # Show the plot
         plt.show()
+
