@@ -131,7 +131,7 @@ class Environment:
         return new_state, reward, done
 
     def reset(self):
-        current_state = self.initial_state.copy()  # Reset agent to initial state
+        self.current_state = self.initial_state.copy()  # Reset agent to initial state
         self.history = [self.initial_state.copy()]
         # reward = self.compute_reward(self.initial_state[0])
         return self.current_state
