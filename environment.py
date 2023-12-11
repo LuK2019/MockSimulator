@@ -113,7 +113,7 @@ class RandomAgent(Agent):
 class UniformAgent(Agent):
     def __init__(self, uniform_action,action_type="continous"):
         super().__init__(action_type)
-        self.uniform_action = uniform_action # number in discrete; tuple in continous
+        self.uniform_action = uniform_action # number in discrete; tuple is continous
 
     def select_action(self, observation):
         return self.uniform_action
@@ -128,8 +128,8 @@ class NaiveAgent(Agent):
 
     def select_action(self, observation):
         # Calculate the angle between the current position and the target
-        dx = self.target[0] - observation[0][0]
-        dy = self.target[1] - observation[0][1]
+        dx = self.target[0] - observation[0]
+        dy = self.target[1] - observation[0]
         angle = np.arctan2(dy, dx)
 
         if self.action_type == "continous":
@@ -147,9 +147,9 @@ class Environment:
         self.target = target
         self.threshold = threshold
         self.replay_buffer = buffer
-        self.initial_state = (initial_xy.copy(), self.flow_field.get_flow_grid())
-        self.current_state = (initial_xy.copy(), self.flow_field.get_flow_grid())
-        self.history = [self.initial_state[0].copy()]
+        self.initial_state = initial_xy.copy()
+        self.current_state = initial_xy.copy()
+        self.history = [self.initial_state.copy()]
         self.action_type = action_type
         self.num_actions = num_actions
         self.magnitude = magnitude
@@ -175,29 +175,29 @@ class Environment:
 
     def step(self, action):
         state = self.current_state
-        #print("Current state:", state[0])
-        flow = self.flow_field.get_flow_at_position(*self.current_state[0]) # based on current position
+        #print("Current state:", state)
+        flow = self.flow_field.get_flow_at_position(*self.current_state) # based on current position
         if self.action_type == "continous":
-            self.current_state[0][0] += action[0] + flow[0] # update x
-            self.current_state[0][1] += action[1] + flow[1] # update y
+            self.current_state[0] += action[0] + flow[0] # update x
+            self.current_state[1] += action[1] + flow[1] # update y
         elif self.action_type == "discrete":
-            self.current_state[0][0] += self.action_map[action][0] + flow[0]
-            self.current_state[0][1] += self.action_map[action][1] + flow[1]
-        #print("New state:", self.current_state[0])
-        self.history.append(self.current_state[0].copy())
+            self.current_state[0] += self.action_map[action][0] + flow[0]
+            self.current_state[1] += self.action_map[action][1] + flow[1]
+        #print("New state:", self.current_state)
+        self.history.append(self.current_state.copy())
         #print("History:", self.history)
         new_state = self.current_state
-        reward = self.compute_reward(new_state[0])
+        reward = self.compute_reward(new_state)
         done = self.is_done()
 
         self.replay_buffer.add(state, action, new_state, reward, done)
         return new_state, action, reward, done
 
     def reset(self):
-        self.current_state[0][0], self.current_state[0][1] = self.initial_state[0]  # Reset agent to initial state
-        self.history = [self.initial_state[0].copy()]
+        current_state = self.initial_state.copy()  # Reset agent to initial state
+        self.history = [self.initial_state.copy()]
         # reward = self.compute_reward(self.initial_state[0])
-        return (self.current_state[0], *self.flow_field.get_flow_grid())
+        return self.current_state
 
     def compute_reward(self, position):
         # Calculate the Euclidean distance from the current position to the target
@@ -207,13 +207,13 @@ class Environment:
 
     def is_done(self):
         # Check if the agent is outside the grid
-        if not (0 <= self.current_state[0][0] < self.flow_field.width and 0 <= self.current_state[0][1] < self.flow_field.height):
+        if not (0 <= self.current_state[0] < self.flow_field.width and 0 <= self.current_state[1] < self.flow_field.height):
             outside_of_grid = True
             print("Episode terminated: Agent moved outside the grid.")
             return outside_of_grid
         
         # Calculate the distance between the agent and the target
-        distance = ((self.current_state[0][0] - self.target[0]) ** 2 + (self.current_state[0][1] - self.target[1]) ** 2) ** 0.5
+        distance = ((self.current_state[0] - self.target[0]) ** 2 + (self.current_state[1] - self.target[1]) ** 2) ** 0.5
         reached_goal = (distance <= self.threshold)
         return reached_goal
 
@@ -233,7 +233,7 @@ class Environment:
         plt.plot(x_vals, y_vals, 'ro-')  # 'ro-' means red color, circle markers, and solid line
 
         # Mark the agent's current position
-        plt.plot(self.current_state[0][0], self.current_state[0][1], 'bo')  # 'bo' means blue color and circle markers
+        plt.plot(self.current_state[0], self.current_state[1], 'bo')  # 'bo' means blue color and circle markers
 
         # Draw the target as a green box
         target_rect = patches.Rectangle(self.target, 1, 1, linewidth=1, edgecolor='g', facecolor='none')
@@ -249,19 +249,37 @@ class Environment:
         # Show the plot
         plt.show()
         
+# class ReplayBuffer:
+#     def __init__(self):
+#         self.buffer = []
+
+#     def add(self, state, action, next_state, reward, done):
+#         experience = {"state": state, "action":action, "next_state":next_state, "reward":reward, "done": done}
+#         self.buffer.append(experience)
+
+#     def get_trajectory(self):
+#         return self.buffer
+
+#     def clear(self):
+#         self.buffer = []
+
 class ReplayBuffer:
     def __init__(self):
-        self.buffer = []
+        self.buffer = {"state":[], "action":[], "next_state":[], "reward":[], "done":[]}
 
     def add(self, state, action, next_state, reward, done):
-        experience = {"state": state, "action":action, "next_state":next_state, "reward":reward, "done": done}
-        self.buffer.append(experience)
+        self.buffer["state"].append(state)
+        self.buffer["action"].append(action)
+        self.buffer["next_state"].append(next_state)
+        self.buffer["reward"].append(reward)
+        self.buffer["done"].append(done)
 
     def get_trajectory(self):
         return self.buffer
 
     def clear(self):
         self.buffer = []
+
 
 
 import random
