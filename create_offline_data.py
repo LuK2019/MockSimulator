@@ -8,11 +8,15 @@ from agent import NaiveAgent
 
 from simulator import Environment, SingleGyreFlowField
 
-
+ACTION_TYPE = "discrete"
 NUM_ACTIONS = 8
 MAGNITUDE = 1 # Magnitude of the action vector
+THRESHOLD = 1.0
+PENALTY = True
 RENDER = False
 
+NUM_ROLLOUTS = 100
+MAX_STEPS = 100
 
 
 class ReplayBuffer:
@@ -49,8 +53,9 @@ def generate_random_trajectories(start_sample_area_interval, target_sample_area_
         print("Target:", target)
         # agent = RandomAgent(momentum_length=3, action_space=NUM_ACTIONS, action_type="discrete")#action_space=((0, 1), (0, 1)))
         agent = NaiveAgent(target, NUM_ACTIONS, magnitude=MAGNITUDE)
-        env = Environment(flow_field, list(start), target, threshold=1.0,
-                          action_type="discrete", num_actions=NUM_ACTIONS, magnitude=MAGNITUDE)
+        env = Environment(flow_field, list(start), target, threshold=THRESHOLD,
+                          action_type=ACTION_TYPE, num_actions=NUM_ACTIONS, magnitude=MAGNITUDE,
+                          penalty=PENALTY)
         state = env.reset()
         done = False
         step = 0
@@ -78,8 +83,8 @@ if __name__ == "__main__":
         start_sample_area_interval=[(1,3),(1,3)],
         target_sample_area_interval=[(16, 19), (16, 19)],
         flow_field=flow_field,
-        num_rollouts=100,
-        max_steps=100)
+        num_rollouts=NUM_ROLLOUTS,
+        max_steps=MAX_STEPS)
     print("Number of trajectories:", len(buffer.buffer))
     # Pickl the buffer and dump it to a file 
     current_time = time.strftime("%Y%m%d-%H%M%S")

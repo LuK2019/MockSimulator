@@ -5,6 +5,7 @@ import numpy as np
 
 FLOW_FIELD = SingleGyreFlowField(width=20, height=20, center=(10, 10), radius=4, strength=1)
 
+ACTION_TYPE = "discrete"
 NUM_ACTIONS = 8
 MAGNITUDE = 1 # Magnitude of Action
 
@@ -32,7 +33,7 @@ for i, (start, target) in enumerate(zip(MISSION_STARTS, MISSION_ENDS)):
 
     agent = NaiveAgent(target, NUM_ACTIONS, magnitude=MAGNITUDE)
     env = Environment(FLOW_FIELD, list(start), target, threshold=THRESHOLD,
-                        action_type="discrete", num_actions=NUM_ACTIONS, magnitude=MAGNITUDE,
+                        action_type=ACTION_TYPE, num_actions=NUM_ACTIONS, magnitude=MAGNITUDE,
                         save_render_name="Naive" + str(i))
     state = env.reset()
     done = False

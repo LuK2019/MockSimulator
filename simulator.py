@@ -78,7 +78,7 @@ class SingleGyreFlowField(FlowField):
 class Environment:
     def __init__(self, flow_field, initial_xy, target, threshold, magnitude,
                  action_type="continous", num_actions=None,
-                 save_render_name = None): # initial_xy - list
+                 save_render_name = None, penalty=True): # initial_xy - list
         self.flow_field = flow_field
         self.target = target
         self.threshold = threshold
@@ -89,6 +89,7 @@ class Environment:
         self.num_actions = num_actions
         self.magnitude = magnitude
         self.save_render_name = save_render_name
+        self.penalty = penalty
 
         if self.action_type == "discrete":
             # Define the number of actions
@@ -138,6 +139,11 @@ class Environment:
     def compute_reward(self, position):
         # Calculate the Euclidean distance from the current position to the target
         distance = ((position[0] - self.target[0]) ** 2 + (position[1] - self.target[1]) ** 2) ** 0.5
+        distance = -distance
+        # if agent steps out of field --> add massive penalty
+        if self.penalty:
+            if not (0 <= self.current_state[0] < self.flow_field.width and 0 <= self.current_state[1] < self.flow_field.height):
+                distance -= 9999
         # Negative of the distance as the reward
         return -distance
 
