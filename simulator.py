@@ -128,7 +128,7 @@ class Environment:
         done = self.is_done()
 
         #self.replay_buffer.add(state, action, new_state, reward, done)
-        return new_state, action, reward, done
+        return new_state, reward, done
 
     def reset(self):
         current_state = self.initial_state.copy()  # Reset agent to initial state

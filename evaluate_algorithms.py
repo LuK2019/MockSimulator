@@ -40,7 +40,7 @@ for i, (start, target) in enumerate(zip(MISSION_STARTS, MISSION_ENDS)):
     step = 0
     while not done and step < MAX_STEPS:
         action = agent.select_action(state)
-        new_state, action, reward, done = env.step(action)
+        new_state, reward, done = env.step(action)
         state = new_state
         step += 1
 

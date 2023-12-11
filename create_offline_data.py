@@ -61,7 +61,7 @@ def generate_random_trajectories(start_sample_area_interval, target_sample_area_
         step = 0
         while not done and step < max_steps:
             action = agent.select_action(state)
-            new_state, action, reward, done = env.step(action)
+            new_state, reward, done = env.step(action)
             buffer.add(state, action, new_state, reward, done)
             state = new_state
             #print(action) - works
