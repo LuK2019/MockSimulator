@@ -6,7 +6,7 @@ import random
 # import cv2
 from typing import Dict, Tuple, List
 
-from agent import NaiveAgent
+from agent import DrunkenAgent, NaiveAgent
 from simulator import Environment
 
 ############################################
@@ -128,7 +128,8 @@ def generate_random_trajectories_fixed_target(flow_field, num_rollouts, max_step
         print("Start:", start)
         print("Target:", target)
         # agent = RandomAgent(momentum_length=3, action_space=NUM_ACTIONS, action_type="discrete")#action_space=((0, 1), (0, 1)))
-        agent = NaiveAgent(random_target, num_actions=num_actions, magnitude=magnitude)
+        # agent = NaiveAgent(random_target, num_actions=num_actions, magnitude=magnitude)
+        agent = DrunkenAgent(momentum_length=3 , target=random_target, num_actions=num_actions, magnitude=magnitude)
         env = Environment(flow_field, list(start), target, threshold=threshold,
                           action_type=action_type, num_actions=num_actions, magnitude=magnitude,
                           penalty=penalty)

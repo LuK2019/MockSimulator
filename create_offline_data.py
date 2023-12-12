@@ -45,18 +45,19 @@ if __name__ == "__main__":
         threshold=THRESHOLD,
         action_type=ACTION_TYPE,
         penalty=PENALTY,
-        target = [17.5, 17.5])
+        target = [17.5, 17.5],
+        render=RENDER)
 
 
     print("Number of transitions:", len(buffer.buffer["done"]))
     # plot buffer.buffer["state"] as a scatter plot in a 2D plane of 20 x 20
     fig, ax = plt.subplots()
-    ax.set_xlim(0, 20)
-    ax.set_ylim(0, 20)
+    ax.set_xlim(-1, 21)
+    ax.set_ylim(-1, 21)
     ax.set_aspect('equal')
     ax.grid(True, which='both')
-    ax.set_xticks(np.arange(0, 21, 1))
-    ax.set_yticks(np.arange(0, 21, 1))
+    ax.set_xticks(np.arange(-1, 22, 1))
+    ax.set_yticks(np.arange(-1, 22, 1))
     ax.set_xlabel("x")
     ax.set_ylabel("y")
     ax.set_title("State_distribution")

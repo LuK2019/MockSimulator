@@ -10,27 +10,27 @@ class Agent:
         raise NotImplementedError("This method should be implemented by subclasses.")
 
 class RandomAgent(Agent):
-    def __init__(self, action_space, action_type="continous", momentum_length=None):
+    def __init__(self, num_actions, action_type="continous", momentum_length=None):
         super().__init__(action_type=action_type)
-        self.action_space = action_space # boundaries of the action space if continous; num of actions in discrete
-
+        #self.action_space = action_space # boundaries of the action space if continous; num of actions in discrete
+        self.num_actions = num_actions
         self.momentum_length = momentum_length
         self.actions_in_a_row = 0
         self.last_action = None
 
     def select_action(self, observation):
-        if self.action_type == "continous":
-            x_action = np.random.uniform(self.action_space[0][0], self.action_space[0][1])
-            y_action = np.random.uniform(self.action_space[1][0], self.action_space[1][1])
-            return (x_action, y_action)
+        # if self.action_type == "continous":
+        #     x_action = np.random.uniform(self.action_space[0][0], self.action_space[0][1])
+        #     y_action = np.random.uniform(self.action_space[1][0], self.action_space[1][1])
+        #     return (x_action, y_action)
+        # else:
+        if self.actions_in_a_row < self.momentum_length and self.last_action is not None:
+            self.actions_in_a_row += 1
+            return self.last_action
         else:
-            if self.actions_in_a_row < self.momentum_length and self.last_action is not None:
-                self.actions_in_a_row += 1
-                return self.last_action
-            else:
-                self.actions_in_a_row = 0
-                self.last_action = np.random.choice(self.action_space)
-                return self.last_action
+            self.actions_in_a_row = 0
+            self.last_action = np.random.choice(self.num_actions)
+            return self.last_action
             
         
     
@@ -72,19 +72,29 @@ class NaiveAgent(Agent):
 # make a new agent called DrunkenAgent which by chance acts either like the RandomAgent or the NaiveAgent
 
 class DrunkenAgent(Agent):
-    def __init__(self, action_space, target, num_actions, action_type="discrete", momentum_length=3, magnitude=1):
+    def __init__(self, target, num_actions, action_type="discrete", momentum_length=3, magnitude=1):
         super().__init__(action_type=action_type)
         # Initialize RandomAgent and NaiveAgent objects
-        self.last_agent_type = ...
-        self.random_agent = RandomAgent(action_space, action_type, momentum_length)
-        self.naive_agent = NaiveAgent(target, num_actions, action_type, magnitude)
-
+        self.last_agent_type = "naive"
+        self.random_agent = RandomAgent(num_actions=num_actions, momentum_length=momentum_length,
+                                        action_type=action_type)
+        self.naive_agent = NaiveAgent(target=target, num_actions=num_actions, action_type=action_type,
+                                      magnitude=magnitude)
+    
     def select_action(self, observation):
-        # Randomly choose to use the action from RandomAgent or NaiveAgent
-        if random.choice([True, False]):
+        # Randomly choose between the two agents
+        if self.random_agent.actions_in_a_row >= 1:
+            self.last_agent_type = "random"
+            return self.naive_agent.select_action(observation)
+        elif np.random.uniform() < 0.5:
+            self.last_agent_type = "random"
             return self.random_agent.select_action(observation)
         else:
+            self.last_agent_type = "naive"
             return self.naive_agent.select_action(observation)
+
+
+    
 
 
 class CQLAgent(Agent):
