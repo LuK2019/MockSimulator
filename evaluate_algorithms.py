@@ -3,7 +3,7 @@ from simulator import Environment, SingleGyreFlowField
 import numpy as np
 import matplotlib.pyplot as plt
 
-LOADED_POLICY = "trained_new_cql copy 2.pth"
+LOADED_POLICY = "working_cql_implementation.pth"
 
 FLOW_FIELD = SingleGyreFlowField(width=20, height=20, center=(10, 10), radius=4, strength=1)
 
@@ -62,7 +62,7 @@ for i, start in enumerate(MISSION_STARTS):
     overview["CQL"][i]["success"] = check_success(target, env.current_state, THRESHOLD)
 
     fig, ax = env.render()
-    fig.savefig(f"trajectory_plots/evaluation/CQL_newest_traj{i}.png")
+    fig.savefig(f"trajectory_plots/evaluation/CQL_newest_all_traj{i}.png")
     print("esel")
     plt.close(fig)
 

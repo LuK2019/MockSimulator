@@ -66,7 +66,7 @@ if __name__ == "__main__":
     ax.scatter(x_vals, y_vals, s=1, c="blue", alpha=0.3)
     # save the plot
     current_time = time.strftime("%Y%m%d-%H%M%S")
-    filename = f"trajectory_plots/exploration/state_distribution_{current_time}.png"
+    filename = f"trajectory_plots/exploration/state_distribution_all_start_{current_time}.png"
     plt.savefig(filename)
     #plt.show()
 

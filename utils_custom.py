@@ -124,7 +124,8 @@ def generate_random_trajectories_fixed_target(flow_field, num_rollouts, max_step
     buffer = ReplayBuffer()
     for i in range(num_rollouts):
         print("Rollout:", i)
-        start = create_random_start()
+        # start = create_random_start()
+        start = create_random_coordinate((0, 20), (0, 20))
         random_target = create_random_coordinate((0, 20), (0, 20))
         print("Start:", start)
         print("Target:", target)
@@ -141,15 +142,15 @@ def generate_random_trajectories_fixed_target(flow_field, num_rollouts, max_step
         while not done and step < max_steps:
             action = agent.select_action(state)
             new_state, reward, done = env.step(action)
-            print("State:", state)
-            print("Action:", action)
-            print("New state:", new_state)
-            print("Reward:", reward)
+            # print("State:", state)
+            # print("Action:", action)
+            # print("New state:", new_state)
+            # print("Reward:", reward)
             buffer.add(state, action, new_state, reward, done)
-            print("Buffer state", buffer.buffer["state"][-1])
-            print("Buffer action", buffer.buffer["action"][-1])
-            print("Buffer next state", buffer.buffer["next_state"][-1])
-            print("Buffer reward", buffer.buffer["reward"][-1])
+            # print("Buffer state", buffer.buffer["state"][-1])
+            # print("Buffer action", buffer.buffer["action"][-1])
+            # print("Buffer next state", buffer.buffer["next_state"][-1])
+            # print("Buffer reward", buffer.buffer["reward"][-1])
 
             state = new_state.copy()
             #print(action) - works
@@ -158,6 +159,6 @@ def generate_random_trajectories_fixed_target(flow_field, num_rollouts, max_step
         print("Last coordinate:", env.current_state[0])
         if i <= 5:
             fig, ax = env.render()
-            fig.savefig(f"trajectory_plots/exploration/exploration_traj{i}.png")
+            fig.savefig(f"trajectory_plots/exploration/exploration_all_target_traj{i}.png")
             plt.close(fig)
     return buffer
