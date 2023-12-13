@@ -16,7 +16,7 @@ THRESHOLD = 1.0
 PENALTY = True
 RENDER = False
 
-NUM_ROLLOUTS = 10000
+NUM_ROLLOUTS = 1000
 MAX_STEPS = 30
 
 
@@ -64,7 +64,18 @@ if __name__ == "__main__":
     x_vals = [x[0] for x in buffer.buffer["state"]]
     y_vals = [x[1] for x in buffer.buffer["state"]]
     ax.scatter(x_vals, y_vals, s=1, c="blue", alpha=0.3)
-    plt.show()
+    # save the plot
+    current_time = time.strftime("%Y%m%d-%H%M%S")
+    filename = f"trajectory_plots/exploration/state_distribution_{current_time}.png"
+    plt.savefig(filename)
+    #plt.show()
+
+
+    # normalize buffer.buffer["reward"]
+    rewards = np.array(buffer.buffer["reward"])
+    rewards = (rewards - np.mean(rewards)) / np.std(rewards)
+
+    buffer.buffer["reward"] = rewards.tolist()
 
     # Pickl the buffer and dump it to a file 
     current_time = time.strftime("%Y%m%d-%H%M%S")

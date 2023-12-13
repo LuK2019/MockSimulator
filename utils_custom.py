@@ -2,6 +2,7 @@ from collections import OrderedDict
 import numpy as np
 import copy
 import random
+import matplotlib.pyplot as plt
 
 # import cv2
 from typing import Dict, Tuple, List
@@ -127,8 +128,9 @@ def generate_random_trajectories_fixed_target(flow_field, num_rollouts, max_step
         random_target = create_random_coordinate((0, 20), (0, 20))
         print("Start:", start)
         print("Target:", target)
+        print("Random target:", random_target)
         # agent = RandomAgent(momentum_length=3, action_space=NUM_ACTIONS, action_type="discrete")#action_space=((0, 1), (0, 1)))
-        # agent = NaiveAgent(random_target, num_actions=num_actions, magnitude=magnitude)
+        #agent = NaiveAgent(random_target, num_actions=num_actions, magnitude=magnitude)
         agent = DrunkenAgent(momentum_length=3 , target=random_target, num_actions=num_actions, magnitude=magnitude)
         env = Environment(flow_field, list(start), target, threshold=threshold,
                           action_type=action_type, num_actions=num_actions, magnitude=magnitude,
@@ -139,12 +141,23 @@ def generate_random_trajectories_fixed_target(flow_field, num_rollouts, max_step
         while not done and step < max_steps:
             action = agent.select_action(state)
             new_state, reward, done = env.step(action)
+            print("State:", state)
+            print("Action:", action)
+            print("New state:", new_state)
+            print("Reward:", reward)
             buffer.add(state, action, new_state, reward, done)
-            state = new_state
+            print("Buffer state", buffer.buffer["state"][-1])
+            print("Buffer action", buffer.buffer["action"][-1])
+            print("Buffer next state", buffer.buffer["next_state"][-1])
+            print("Buffer reward", buffer.buffer["reward"][-1])
+
+            state = new_state.copy()
             #print(action) - works
             #print(new_state[0]) - works
             step += 1
         print("Last coordinate:", env.current_state[0])
-        if render:
-            env.render()
+        if i <= 5:
+            fig, ax = env.render()
+            fig.savefig(f"trajectory_plots/exploration/exploration_traj{i}.png")
+            plt.close(fig)
     return buffer

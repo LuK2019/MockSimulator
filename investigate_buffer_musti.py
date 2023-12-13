@@ -2,7 +2,7 @@ import pickle
 import numpy as np
 import os
 
-log_name = "buffer_20231210-182008"
+log_name = "exploration_newest"
 with open(os.path.join('logs', log_name+'.pkl'), 'rb') as f:
     buffer = pickle.load(f)
 
@@ -36,5 +36,29 @@ class ReplayBuffer_from_file:
 
 #dataset = ReplayBuffer_flattened(retrieved_dict)
 dataset = ReplayBuffer_from_file(buffer)
+actions = dataset.actions
+rewards = dataset.rewards
+
+# Getting unique elements and their frequencies
+unique_elements, counts = np.unique(actions, return_counts=True)
+
+# Creating a dictionary for better readability
+frequency_dict = dict(zip(unique_elements, counts))
+
+# Print action frequencies
+print(frequency_dict)
+
+# Print associated rewards
+median_rewards = {}
+
+# Iterate through each unique action
+for action in np.unique(actions):
+    # Filter out rewards corresponding to the current action
+    action_rewards = rewards[actions == action]
+
+    # Calculate and store the median of these rewards
+    median_rewards[action] = np.median(action_rewards)
+
+print(median_rewards)
 
 print(dataset.observations.shape)

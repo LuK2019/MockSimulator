@@ -90,6 +90,7 @@ class Environment:
         self.magnitude = magnitude
         self.save_render_name = save_render_name
         self.penalty = penalty
+        self.reward_history = []
 
         if self.action_type == "discrete":
             # Define the number of actions
@@ -125,6 +126,7 @@ class Environment:
         #print("History:", self.history)
         new_state = self.current_state
         reward = self.compute_reward(new_state)
+        self.reward_history.append(reward)
         done = self.is_done()
 
         #self.replay_buffer.add(state, action, new_state, reward, done)
@@ -133,19 +135,20 @@ class Environment:
     def reset(self):
         self.current_state = self.initial_state.copy()  # Reset agent to initial state
         self.history = [self.initial_state.copy()]
+        self.reward_history = []
         # reward = self.compute_reward(self.initial_state[0])
-        return self.current_state
+        return self.current_state.copy()
 
     def compute_reward(self, position):
         # Calculate the Euclidean distance from the current position to the target
         distance = ((position[0] - self.target[0]) ** 2 + (position[1] - self.target[1]) ** 2) ** 0.5
-        distance = -distance
+        distance = - distance
         # if agent steps out of field --> add massive penalty
         if self.penalty:
             if not (0 <= self.current_state[0] < self.flow_field.width and 0 <= self.current_state[1] < self.flow_field.height):
-                distance -= 9999
+                distance -= 100
         # Negative of the distance as the reward
-        return -distance
+        return distance
 
     def is_done(self):
         # Check if the agent is outside the grid
@@ -159,47 +162,47 @@ class Environment:
         reached_goal = (distance <= self.threshold)
         return reached_goal
 
-    def render(self):
+    def render(self, plot_reward=False): # plot_reward for debugging
+        fig, ax = plt.subplots()
+
         X, Y = np.mgrid[0:self.flow_field.width, 0:self.flow_field.height]
         U = np.zeros_like(X)
         V = np.zeros_like(Y)
-        for i in range(self.flow_field.height):  # Swap the loops
+        for i in range(self.flow_field.height):  
             for j in range(self.flow_field.width):
-                U[i, j], V[i, j] = self.flow_field.get_flow_at_position(j, i)  # Swap i and j here
+                U[i, j], V[i, j] = self.flow_field.get_flow_at_position(j, i)  
 
-        plt.quiver(X, Y, U, V, pivot='mid')
+        ax.quiver(X, Y, U, V, pivot='mid')
 
         # Plot the agent's trajectory
-        #plot(self.history)
         x_vals, y_vals = zip(*self.history)
-        plt.plot(x_vals, y_vals, 'ro-')  # 'ro-' means red color, circle markers, and solid line
+        ax.plot(x_vals, y_vals, 'ro-')
 
         # Mark the agent's current position
-        plt.plot(self.current_state[0], self.current_state[1], 'bo')  # 'bo' means blue color and circle markers
+        ax.plot(self.current_state[0], self.current_state[1], 'bo')
 
         # Make a big Green X at the target
-        plt.plot(self.target[0], self.target[1], 'gx', markersize=8, markeredgewidth=2)
+        ax.plot(self.target[0], self.target[1], 'gx', markersize=8, markeredgewidth=2)
 
         # Draw a circle to show the threshold
         circle = plt.Circle(self.target, self.threshold, color='g', fill=False)
-        ax = plt.gca()
         ax.add_artist(circle)
-        # Set the aspect of the plot to be equal
+
+        # Add every second reward value on the line between x_vals and y_vals and make it small
+        if plot_reward:
+            for i in range(0, len(self.reward_history), 2):
+                ax.text(x_vals[i], y_vals[i], round(self.reward_history[i], 2), fontsize=8)
+       
+
+        # Set the aspect of the plot to be equal and set limits and labels
         ax.set_aspect('equal', adjustable='box')
+        ax.set_xlim(0, self.flow_field.width)
+        ax.set_ylim(0, self.flow_field.height)
+        ax.set_xlabel('X-axis')
+        ax.set_ylabel('Y-axis')
+        ax.set_title('Agent Movement in Flow Field')
 
-        # Set plot limits and labels
-        plt.xlim(0, self.flow_field.width)
-        plt.ylim(0, self.flow_field.height)
-        plt.xlabel('X-axis')
-        plt.ylabel('Y-axis')
-        plt.title('Agent Movement in Flow Field')
 
-        # Save fig
-        if self.save_render_name is not None:
-            # save image in folder trajectory_plots with name save_render_name
-            plt.savefig(f"trajectory_plots/{self.save_render_name}.png")
-            plt.close()
-        
-        # Show the plot
-        plt.show()
+        # Return the figure and axis for further use
+        return fig, ax
 

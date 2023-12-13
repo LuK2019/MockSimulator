@@ -1,5 +1,8 @@
 import numpy as np
 import random
+import torch.nn as nn
+import torch
+import pytorch_util as ptu
 
 class Agent:
     def __init__(self, loaded_policy=None, action_type="continous"):
@@ -85,7 +88,7 @@ class DrunkenAgent(Agent):
         # Randomly choose between the two agents
         if self.random_agent.actions_in_a_row >= 1:
             self.last_agent_type = "random"
-            return self.naive_agent.select_action(observation)
+            return self.random_agent.select_action(observation)
         elif np.random.uniform() < 0.5:
             self.last_agent_type = "random"
             return self.random_agent.select_action(observation)
@@ -97,11 +100,53 @@ class DrunkenAgent(Agent):
     
 
 
+# class CriticNetwork(nn.Module):
+#     def __init__(self):
+#         super(CriticNetwork, self).__init__()
+#         # Define the layers directly without a Sequential wrapper
+#         self.layer0 = nn.Linear(in_features=2, out_features=64)
+#         self.layer1 = nn.Tanh()
+#         self.layer2 = nn.Linear(in_features=64, out_features=64)
+#         self.layer3 = nn.Tanh()
+#         self.layer4 = nn.Linear(in_features=64, out_features=8)
+#         self.layer5 = nn.Identity()
+
+#     def forward(self, x):
+#         x = self.layer0(x)
+#         x = self.layer1(x)
+#         x = self.layer2(x)
+#         x = self.layer3(x)
+#         x = self.layer4(x)
+#         x = self.layer5(x)
+#         return x
+
 class CQLAgent(Agent):
-    def __init__(self, loaded_policy=None, action_type="discrete"):
+    def __init__(self, observation_shape, num_actions, num_layers, hidden_size, loaded_policy=None, action_type="discrete"):
         assert loaded_policy is not None, "Please specify path to CQL"
         self.loaded_policy = loaded_policy
         self.action_type = action_type
+        self.critic = ptu.build_mlp(
+            input_size=np.prod(observation_shape),
+            output_size=num_actions,
+            n_layers=num_layers,
+            size=hidden_size,
+        )
+        self.num_actions = num_actions
+        self.critic.load_state_dict(torch.load(self.loaded_policy))
+        
 
-    def select_action(self):
-        raise NotImplementedError("This method should be implemented by subclasses.")
+    def select_action(self, observation: np.ndarray, epsilon: float = 0.04) -> int:
+        observation = ptu.from_numpy(np.asarray(observation))[None]
+
+        # TODO(student): get the action from the critic using an epsilon-greedy strategy
+        """
+        action = ...
+        """
+        if torch.rand(1) < epsilon:
+            action = torch.randint(self.num_actions, ())
+        else:
+            qa_values: torch.Tensor = self.critic(observation)
+            action = qa_values.argmax(dim=-1)
+        # ENDTODO
+
+        return ptu.to_numpy(action).squeeze(0).item()
