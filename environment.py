@@ -62,10 +62,10 @@ class SingleGyreFlowField(FlowField):
         self.radius = radius
         self.strength = strength
 
-    def get_flow_at_position(self, y, x):  # Swap x and y in the parameter list
-        if 0 <= y <= self.height and 0 <= x <= self.width:
-            dx = x - self.center[1]  # Swap center coordinates
-            dy = y - self.center[0]
+    def get_flow_at_position(self, x, y): 
+        if 0 <= x <= self.height and 0 <= y <= self.width:
+            dx = x - self.center[0]  
+            dy = y - self.center[1]
             distance = np.sqrt(dx**2 + dy**2)
             if distance < self.radius:
                 return (-self.strength * dy, self.strength * dx)
@@ -161,9 +161,9 @@ class Environment:
         X, Y = np.mgrid[0:self.flow_field.width, 0:self.flow_field.height]
         U = np.zeros_like(X)
         V = np.zeros_like(Y)
-        for i in range(self.flow_field.height):  # Swap the loops
+        for i in range(self.flow_field.height): 
             for j in range(self.flow_field.width):
-                U[i, j], V[i, j] = self.flow_field.get_flow_at_position(j, i)  # Swap i and j here
+                U[i, j], V[i, j] = self.flow_field.get_flow_at_position(i, j)  # Swap i and j here
 
         plt.quiver(X, Y, U, V, pivot='mid')
 
@@ -248,7 +248,7 @@ import time
 import pickle
 
 if __name__ == "__main__":
-    variant = 2
+    variant = 1
 
     if variant == 1:
         # Example usage with custom action space
@@ -260,7 +260,8 @@ if __name__ == "__main__":
         uniform_agent = UniformAgent(start_x=2, start_y=2, uniform_action= (1.0, 0.5))  # UniformAgent always moves (0.5, 0.5)
         random_agent = RandomAgent(0, 0, [(1, 0), (0, 1), (-1, 0), (0, -1)])  # RandomAgent chooses randomly
         NUM_ROLLOUTS = 10
-        env = Environment(flow_field, uniform_agent, target=(8, 8), threshold=1.0)
+        buffer = ReplayBuffer()
+        env = Environment(flow_field, uniform_agent, target=(8, 8), threshold=1.0, buffer=buffer)
         render = True
         state = env.reset()
         done = False
