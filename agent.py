@@ -4,6 +4,11 @@ import torch.nn as nn
 import torch
 import pytorch_util as ptu
 
+from utils_diffusor import load_checkpoint, get_model, reset_start_and_target, limits_normalizer, limits_unnormalizer
+from diffusers import DDPMScheduler
+import tqdm
+
+
 class Agent:
     def __init__(self, loaded_policy=None, action_type="continous"):
         self.loaded_policy = loaded_policy
@@ -72,6 +77,71 @@ class NaiveAgent(Agent):
 
         return action
     
+class DiffusorAgent(Agent):
+    def __init__(self, target, num_actions, path_to_diffusor_model):
+        super().__init__()
+        self.target = target
+        self.num_actions = num_actions
+        self.path_to_diffusor_model = path_to_diffusor_model
+        self.model = self.load_diffusor_model()
+
+        # ----------------- #
+        # Hyperparameters
+        # ----------------- #
+        self.learning_rate = 1e-4
+        self.eta = 1.0
+        self.batch_size = 1
+        self.min = 0
+        self.max = 20
+        # ----------------- #
+
+    def select_action(self, observation, current_timestep): # Observation = (x: float, y: float) #TODO: Need to updated select_action method from other agents to work with third argument
+        start_unnormalized = # Current position and action of the agent
+        target_unnormalized = self.target
+        start_normalized = # Normalize the start position and action
+        target_normalized = # Normalize the target position
+        horizon = MISSION_LENGTH - current_timestep# Remaining time until episode ends
+        trajectory_normalized = self.get_trajectory_for_given_start_target_horizon(start_normalized, target_normalized, horizon)
+        trajectory_unnormalized = # Unnormalize the trajectory
+        next_action = # Get the next action from the trajectory
+        return next_action
+
+    def load_diffusor_model(self):
+        model = get_model("unet1d")
+        optimizer = torch.optim.AdamW(model.parameters(), lr=self.learning_rate)
+        model, optimizer = load_checkpoint(model, optimizer, self.path_to_diffusor_model)
+        return model
+
+    def get_trajectory_for_given_start_target_horizon(self, start, target, horizon):
+        conditions = {
+                    0: start,
+                    -1: target
+                }
+        shape = (1,self.state_dim+self.action_dim, horizon)
+        x = torch.randn(shape, device='cpu')
+        x = reset_start_and_target(x, conditions, self.action_dim)
+        scheduler = DDPMScheduler(num_train_timesteps=self.num_train_timesteps, prediction_type="sample")
+
+        for i in tqdm.tqdm(scheduler.timesteps):
+
+            timesteps = torch.full((self.batch_size,), i, device='cpu', dtype=torch.long)
+
+            with torch.no_grad():
+                # print("shape of x and timesteps: ", x.shape, timesteps.shape)
+                residual = self.model(x, timesteps).sample
+
+            obs_reconstruct = scheduler.step(residual, i, x)["prev_sample"]
+
+            if self.eta > 0:
+                noise = torch.randn(obs_reconstruct.shape).to(obs_reconstruct.device)
+                posterior_variance = scheduler._get_variance(i)
+                obs_reconstruct = obs_reconstruct + int(i>0) * (0.5 * posterior_variance) * self.eta* noise  # no noise when t == 0
+
+            obs_reconstruct_postcond = reset_start_and_target(obs_reconstruct, conditions, self.action_dim)
+            x = obs_reconstruct_postcond
+
+        return x
+
 # make a new agent called DrunkenAgent which by chance acts either like the RandomAgent or the NaiveAgent
 
 class DrunkenAgent(Agent):
